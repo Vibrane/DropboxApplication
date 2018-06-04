@@ -8,6 +8,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executors;
 import java.util.logging.Logger;
+
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -17,10 +20,12 @@ import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 import surfstore.MetadataStore.MetadataStoreImpl.FileInfoStruct;
 import surfstore.MetadataStoreGrpc.MetadataStoreBlockingStub;
-import surfstore.SurfStoreBasic.*;
+import surfstore.SurfStoreBasic.Block;
+import surfstore.SurfStoreBasic.Empty;
+import surfstore.SurfStoreBasic.FileInfo;
+import surfstore.SurfStoreBasic.SimpleAnswer;
+import surfstore.SurfStoreBasic.WriteResult;
 import surfstore.SurfStoreBasic.WriteResult.Result;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
 
 public final class MetadataStore {
     private static final Logger logger = Logger.getLogger(MetadataStore.class.getName());
@@ -182,9 +187,8 @@ public final class MetadataStore {
         }
 
         server.blockUntilShutdown();
-
     }
-
+    
     private static void facilitator(final MetadataStoreBlockingStub stub,
             final ConcurrentLinkedDeque<FileInfoStruct> log) {
         new Thread(new Runnable() {
@@ -305,7 +309,7 @@ public final class MetadataStore {
             int version = request.getVersion(); // version number given
             ArrayList<String> hashList = new ArrayList<>(); // hashLists which should exist
             for (int i = 0; i < request.getBlocklistCount(); i++)
-                hashList.add(request.getBlocklist(i)); // this adds all the blocks to the blockserver
+                hashList.add(request.getBlocklist(i));
             ArrayList<String> missingBlocks = new ArrayList<>();
             WriteResult.Builder builder = WriteResult.newBuilder();
 
@@ -408,12 +412,13 @@ public final class MetadataStore {
                     else // everything seems to be good
                     {
                         fileVersionMap.put(fileName, version); // version number updated
-                        ArrayList<String> emptyList = new ArrayList<>();
-                        hashListMap.put(fileName, emptyList); // hashList set to null
+                        ArrayList<String> zeroList = new ArrayList<>();
+                        zeroList.add("0");
+                        hashListMap.put(fileName, zeroList); // hashList set to null
                         builder.setResult(WriteResult.Result.OK);
 
                         // since this is okay, time to create FileInfoStruct
-                        fileInfoCreator(fileName, version, emptyList);
+                        fileInfoCreator(fileName, version, zeroList);
                     }
 
                     builder.setCurrentVersion(fileVersionMap.get(fileName)); // set the fileVersion Number
@@ -436,7 +441,7 @@ public final class MetadataStore {
             }
 
             WriteResult response = builder.build();
-            if (response.getResult() == Result.OK && distributed)
+            if (distributed && response.getResult() == Result.OK)
                 consensus(); // consensus checking
             responseObserver.onNext(response);
             responseObserver.onCompleted();
