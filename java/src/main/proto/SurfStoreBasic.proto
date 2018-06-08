@@ -65,6 +65,8 @@ service MetadataStore {
 	//added this RPC
     rpc UpdateFollower(FileInfo) returns (SimpleAnswer){}
 
+    rpc HelperPingFollower(Empty) returns (SimpleAnswer) {}
+
 }
 
 service BlockStore {

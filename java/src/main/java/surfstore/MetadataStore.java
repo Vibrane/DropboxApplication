@@ -47,6 +47,8 @@ public final class MetadataStore {
     private static ConcurrentLinkedDeque<FileInfoStruct> logA; // log of operations for follower A
     private static ConcurrentLinkedDeque<FileInfoStruct> logB; // log of operations for follower B
 
+    private static Boolean followerOneActive, followerTwoActive;
+
     public MetadataStore(ConfigReader config) {
 
         blockChannel = ManagedChannelBuilder.forAddress("127.0.0.1", config.getBlockPort()).usePlaintext(true).build();
@@ -56,6 +58,8 @@ public final class MetadataStore {
         leader = (MetadataStore.metadataID == MetadataStore.config.getLeaderNum()) ? true : false;
 
         distributed = (config.getNumMetadataServers() > 1) ? true : false;
+        followerOneActive = false;
+        followerTwoActive = false;
 
         if (distributed) // check if we are dealing with a distributed system
         {
@@ -182,20 +186,25 @@ public final class MetadataStore {
 
         if (leader && distributed) {
             // this is going to be the facilitator
-            facilitator(metadataStubA, logA); // independent thread that handles the log for follower A
-            facilitator(metadataStubB, logB); // independent thread that handles the log for follower B
+            facilitator(metadataStubA, logA, 1); // independent thread that handles the log for follower A
+            facilitator(metadataStubB, logB, 2); // independent thread that handles the log for follower B
         }
 
         server.blockUntilShutdown();
     }
-    
+
     private static void facilitator(final MetadataStoreBlockingStub stub,
-            final ConcurrentLinkedDeque<FileInfoStruct> log) {
+            final ConcurrentLinkedDeque<FileInfoStruct> log, final int follower) {
         new Thread(new Runnable() {
             public void run() {
                 while (true) {
-                    if (stub.isCrashed(Empty.newBuilder().build()).getAnswer() == false) // means it is active
+                    boolean active = stub.helperPingFollower(Empty.newBuilder().build()).getAnswer();
+                    if (active = true) // means it is active
                     {
+                        if (follower == 1)
+                            followerOneActive = active;
+                        else
+                            followerTwoActive = active;
                         while (!log.isEmpty()) // while there are updates left
                         {
                             FileInfoStruct fileInfo = log.pop(); // first request
@@ -210,6 +219,10 @@ public final class MetadataStore {
                             if (stub.updateFollower(request).getAnswer() == false) // means update did not occur
                             {
                                 log.push(fileInfo); // the update didnt happen
+                                if (follower == 1)
+                                    followerOneActive = false;
+                                else
+                                    followerTwoActive = false;
                                 break; // breaks outside of the loop
                             }
                         }
@@ -531,6 +544,13 @@ public final class MetadataStore {
             responseObserver.onCompleted();
         }
 
+        public void helperPingFollower(surfstore.SurfStoreBasic.Empty request,
+                io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.SimpleAnswer> responseObserver) {
+            SimpleAnswer response = SimpleAnswer.newBuilder().setAnswer(alive).build(); // oppositive of alive state
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        }
+
         protected class FileInfoStruct {
             protected String fileName;
             protected int version;
@@ -541,11 +561,8 @@ public final class MetadataStore {
         // 1) both back-ups are down
         // 2) either back-up is alive and its log count is > 0
         private void consensus() {
-            while (metadataStubA.isCrashed(Empty.newBuilder().build()).getAnswer()
-                    && metadataStubB.isCrashed(Empty.newBuilder().build()).getAnswer()
-                    || !metadataStubA.isCrashed(Empty.newBuilder().build()).getAnswer() && logA.size() > 0
-                    || !metadataStubB.isCrashed(Empty.newBuilder().build()).getAnswer() && logB.size() > 0)
-                continue;
+            while (logA.size() > 0 && followerOneActive || logB.size() > 0 && followerTwoActive)
+                continue; // stalling
         }
 
         private Block blockRequest(String hash) {
@@ -553,7 +570,6 @@ public final class MetadataStore {
             return Block.newBuilder().setHash(hash).build();
         }
 
-        // made this function synchronized
         private void fileInfoCreator(String fileName, int version, ArrayList<String> hashList) {
             FileInfoStruct fileInfo = new FileInfoStruct();
             fileInfo.fileName = fileName;
