@@ -198,37 +198,35 @@ public final class MetadataStore {
         new Thread(new Runnable() {
             public void run() {
                 while (true) {
-                    boolean active = stub.helperPingFollower(Empty.newBuilder().build()).getAnswer();
-                    if (active = true) // means it is active
+
+                    if (follower == 1)
+                        followerOneActive = true;
+                    else
+                        followerTwoActive = true;
+                    while (!log.isEmpty()) // while there are updates left
                     {
-                        if (follower == 1)
-                            followerOneActive = active;
-                        else
-                            followerTwoActive = active;
-                        while (!log.isEmpty()) // while there are updates left
+                        FileInfoStruct fileInfo = log.pop(); // first request
+                        FileInfo.Builder builder = FileInfo.newBuilder();
+
+                        builder.setFilename(fileInfo.fileName);
+                        builder.setVersion(fileInfo.version);
+                        builder.addAllBlocklist(fileInfo.hashList);
+
+                        FileInfo request = builder.build();
+
+                        if (stub.updateFollower(request).getAnswer() == false) // means update did not occur
                         {
-                            FileInfoStruct fileInfo = log.pop(); // first request
-                            FileInfo.Builder builder = FileInfo.newBuilder();
-
-                            builder.setFilename(fileInfo.fileName);
-                            builder.setVersion(fileInfo.version);
-                            builder.addAllBlocklist(fileInfo.hashList);
-
-                            FileInfo request = builder.build();
-
-                            if (stub.updateFollower(request).getAnswer() == false) // means update did not occur
-                            {
-                                log.push(fileInfo); // the update didnt happen
-                                if (follower == 1)
-                                    followerOneActive = false;
-                                else
-                                    followerTwoActive = false;
-                                break; // breaks outside of the loop
-                            }
+                            log.push(fileInfo); // the update didnt happen
+                            if (follower == 1)
+                                followerOneActive = false;
+                            else
+                                followerTwoActive = false;
+                            break; // breaks outside of the loop
                         }
                     }
+
                     try {
-                        Thread.sleep(500); // sleep for a while before performing check again
+                        Thread.sleep(1000); // sleep for a while before performing check again
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
