@@ -33,7 +33,7 @@ public class HashUtils {
 		byte[] encodedhash = digest.digest(bytesArray);
 		String encoded = Base64.getEncoder().encodeToString(encodedhash);
 		return encoded;
-
+		
 	}
 
 }

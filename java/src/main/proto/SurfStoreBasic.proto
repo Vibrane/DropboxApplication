@@ -6,16 +6,14 @@ service MetadataStore {
     // A simple ping. Does not return anything.
     // Use the status code of the RPC to check for success.
     rpc Ping (Empty) returns (Empty) {}
+
     // Read the requested file.
     // The client only needs to supply the "filename" argument of FileInfo.
     // The server only needs to fill the "version" and "blocklist" fields.
-    // If the file does not exist, "version" should be set to 0.  This
-    // call should return the result even if the server it is invoked on
-    // is not the leader.
-    //
-    // For part 2, this call should return the status of the file
-    // including the block list and version number *even if the server is
-    // in a crashed state*.  This is so we can test your code.
+    // If the file does not exist, "version" should be set to 0.
+	//
+    // This command should return an error if it is called on a server
+    // that is not the leader
     rpc ReadFile (FileInfo) returns (FileInfo) {}
 
     // Write a file.
@@ -61,11 +59,20 @@ service MetadataStore {
     // Find out if the node is crashed or not
     // (should always work, even if the node is crashed)
     rpc IsCrashed(Empty) returns (SimpleAnswer) {}
-    
-	//added this RPC
-    rpc UpdateFollower(FileInfo) returns (SimpleAnswer){}
 
-    rpc HelperPingFollower(Empty) returns (SimpleAnswer) {}
+	// Returns the current committed version of the requested file
+	// The argument's FileInfo only has the "filename" field defined
+	// The FileInfo returns the filename and version fields only
+	// This should return a result even if the follower is in a
+	//   crashed state
+	rpc GetVersion(FileInfo) returns (FileInfo) {}
+
+    // YOU CAN INSERT ADDITIONAL RPC CALLS HERE TO IMPLEMENT PART 2
+    // OF THE PROJECT, BUT PLEASE DON'T MODIFY THE ABOVE CALLS/ARGUMENTS
+
+    rpc UpdateFollower(FileInfo) returns (SimpleAnswer) {}
+
+
 
 }
 
@@ -101,6 +108,7 @@ message FileInfo {
     int32 version = 2;
     repeated string blocklist = 3;
 }
+
 message Block {
     string hash = 1;
     bytes data = 2;
@@ -114,14 +122,13 @@ message WriteResult {
         NOT_LEADER = 3;
     }
     Result result = 1;
-    int32 current_version = 2; //new version
+    int32 current_version = 2;
     repeated string missing_blocks = 3;
 }
 
 message SimpleAnswer {
     bool answer = 1;
 }
-
 
 message NodeList {
     repeated int32 nodelist = 1;

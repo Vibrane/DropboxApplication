@@ -258,20 +258,13 @@ public final class MetadataStore {
             responseObserver.onCompleted();
         }
 
-        /**
-         * <pre>
-         * Read the requested file.
-         * The client only needs to supply the "filename" argument of FileInfo.
-         * The server only needs to fill the "version" and "blocklist" fields.
-         * If the file does not exist, "version" should be set to 0.  This
-         * call should return the result even if the server it is invoked on
-         * is not the leader.
-         *
-         * For part 2, this call should return the status of the file
-         * including the block list and version number *even if the server is
-         * in a crashed state*.  This is so we can test your code.
-         * </pre>
-         */
+        // Read the requested file.
+        // The client only needs to supply the "filename" argument of FileInfo.
+        // The server only needs to fill the "version" and "blocklist" fields.
+        // If the file does not exist, "version" should be set to 0.
+        //
+        // This command should return an error if it is called on a server
+        // that is not the leader
 
         public void readFile(surfstore.SurfStoreBasic.FileInfo request,
                 io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.FileInfo> responseObserver) {
@@ -295,24 +288,20 @@ public final class MetadataStore {
             responseObserver.onCompleted();
         }
 
-        /**
-         * <pre>
-         * Write a file.
-         * The client must specify all fields of the FileInfo message.
-         * The server returns the result of the operation in the "result" field.
-         *
-         * The server ALWAYS sets "current_version", regardless of whether
-         * the command was successful. If the write succeeded, it will be the
-         * version number provided by the client. Otherwise, it is set to the
-         * version number in the MetadataStore.
-         *
-         * If the result is MISSING_BLOCKS, "missing_blocks" contains a
-         * list of blocks that are not present in the BlockStore.
-         *
-         * This command should return an error if it is called on a server
-         * that is not the leader
-         * </pre>
-         */
+        // Write a file.
+        // The client must specify all fields of the FileInfo message.
+        // The server returns the result of the operation in the "result" field.
+        //
+        // The server ALWAYS sets "current_version", regardless of whether
+        // the command was successful. If the write succeeded, it will be the
+        // version number provided by the client. Otherwise, it is set to the
+        // version number in the MetadataStore.
+        //
+        // If the result is MISSING_BLOCKS, "missing_blocks" contains a
+        // list of blocks that are not present in the BlockStore.
+        //
+        // This command should return an error if it is called on a server
+        // that is not the leader
         public void modifyFile(surfstore.SurfStoreBasic.FileInfo request,
                 io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.WriteResult> responseObserver) {
 
@@ -400,15 +389,11 @@ public final class MetadataStore {
             responseObserver.onCompleted();
         }
 
-        /**
-         * <pre>
-         * Delete a file.
-         * This has the same semantics as ModifyFile, except that both the
-         * client and server will not specify a blocklist or missing blocks.
-         * As in ModifyFile, this call should return an error if the server
-         * it is called on isn't the leader
-         * </pre>
-         */
+        // Delete a file.
+        // This has the same semantics as ModifyFile, except that both the
+        // client and server will not specify a blocklist or missing blocks.
+        // As in ModifyFile, this call should return an error if the server
+        // it is called on isn't the leader
         public void deleteFile(surfstore.SurfStoreBasic.FileInfo request,
                 io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.WriteResult> responseObserver) {
             String fileName = request.getFilename(); // fileName in question
@@ -458,12 +443,8 @@ public final class MetadataStore {
             responseObserver.onCompleted();
         }
 
-        /**
-         * <pre>
-         * Query whether the MetadataStore server is currently the leader.
-         * This call should work even when the server is in a "crashed" state
-         * </pre>
-         */
+        // Query whether the MetadataStore server is currently the leader.
+        // This call should work even when the server is in a "crashed" state
         public void isLeader(surfstore.SurfStoreBasic.Empty request,
                 io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.SimpleAnswer> responseObserver) {
             SimpleAnswer response = SimpleAnswer.newBuilder().setAnswer(leader).build();
@@ -471,13 +452,9 @@ public final class MetadataStore {
             responseObserver.onCompleted();
         }
 
-        /**
-         * <pre>
-         * "Crash" the MetadataStore server.
-         * Until Restore() is called, the server should reply to all RPCs
-         * with an error (except Restore) and not send any RPCs to other servers.
-         * </pre>
-         */
+        // "Crash" the MetadataStore server.
+        // Until Restore() is called, the server should reply to all RPCs
+        // with an error (except Restore) and not send any RPCs to other servers.
         public void crash(surfstore.SurfStoreBasic.Empty request,
                 io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.Empty> responseObserver) {
             alive = false;
@@ -514,6 +491,26 @@ public final class MetadataStore {
             responseObserver.onCompleted();
         }
 
+        public void getVersion(surfstore.SurfStoreBasic.FileInfo request,
+                io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.FileInfo> responseObserver) {
+
+            String fileName = request.getFilename();
+            int version = 0;
+
+            if (fileVersionMap.containsKey(fileName)) {
+                version = fileVersionMap.get(fileName);
+            } else
+                version = 0;
+
+            FileInfo.Builder builder = FileInfo.newBuilder();
+            builder.setFilename(fileName);
+            builder.setVersion(version);
+            FileInfo response = builder.build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+
+        }
+
         /**
          * <pre>
          *added this RPC
@@ -538,13 +535,6 @@ public final class MetadataStore {
             builder.setAnswer(alive); // if alive, updated happened otherwise no update
 
             SimpleAnswer response = builder.build();
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-        }
-
-        public void helperPingFollower(surfstore.SurfStoreBasic.Empty request,
-                io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.SimpleAnswer> responseObserver) {
-            SimpleAnswer response = SimpleAnswer.newBuilder().setAnswer(alive).build(); // oppositive of alive state
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         }
